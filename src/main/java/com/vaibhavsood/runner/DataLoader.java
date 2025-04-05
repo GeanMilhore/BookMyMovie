@@ -16,11 +16,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Component;
-import org.springframework.util.ResourceUtils;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.sql.Date;
 import java.sql.Time;
 import java.util.List;
@@ -34,8 +35,7 @@ public class DataLoader implements ApplicationRunner {
     private ScreeningRepository screeningRepository;
     private final Logger LOGGER = LoggerFactory.getLogger(this.getClass());
 
-    @Autowired
-    private TaskExecutor taskExecutor;
+    private final int SCREEN_DEFAULT_SIZE = 14;
 
     public MovieRepository getMovieRepository() {
         return movieRepository;
@@ -96,8 +96,8 @@ public class DataLoader implements ApplicationRunner {
             }
 
             if (movieLensPage != null) {
-                Element image = movieLensPage.getElementsByClass("poster").first().children().first().children().first();
-                movie.setMoviePosterUrl(image.attr("src"));
+                Element image = movieLensPage.getElementsByClass("ipc-lockup-overlay ipc-focusable").first();
+                movie.setMoviePosterUrl("imdb.com" + image.attr("href"));
             }
 
             movieRepository.save(movie);
@@ -105,6 +105,8 @@ public class DataLoader implements ApplicationRunner {
     }
 
     private void populateMovieTable() {
+        if (!movieRepository.findAll().isEmpty()) return;
+
         try (BufferedReader brMovies = new BufferedReader(new InputStreamReader(new ClassPathResource("movies.medium.csv").getInputStream()));
                BufferedReader brLinks = new BufferedReader(new InputStreamReader(new ClassPathResource("links.csv").getInputStream()))) {
             String movieLine;
@@ -127,6 +129,9 @@ public class DataLoader implements ApplicationRunner {
         /* schema.sql lists 5 theaters, generate 2 screenings randomly for
          * each screen in each theater
          */
+
+         if(screenRepository.findAll().size() > SCREEN_DEFAULT_SIZE) return;
+
         for (int i = 1; i <= 5; i++) {
             List<Screen> screens = screenRepository.findByTheatreId(i);
             for (int j = 0; j < screens.size(); j++) {
