@@ -10,13 +10,13 @@ import java.util.Iterator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class CSVReader {
+public class CSVFile {
 
     private String file;
     private Iterator<String> fileLines;
     private String header;
 
-    CSVReader(String fileName) {
+    CSVFile(String fileName) {
         this.file = fileName;
         this.fileLines = fileLinesAsIterator();
         this.header = fileLines.next();

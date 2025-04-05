@@ -53,15 +53,20 @@ public class DataLoader implements ApplicationRunner {
     private void populateMovieTable() {
         if (!movieRepository.findAll().isEmpty()) return;
 
-        CSVReader moviesReader = new CSVReader("movies.medium.csv");
-        CSVReader linksReader = new CSVReader("links.csv");
+        CSVFile moviesReader = new CSVFile("movies.medium.csv");
+        CSVFile linksReader = new CSVFile("links.csv");
         Iterator<String> allMovies = moviesReader.getFileLines();
         Iterator<String> allLinks = linksReader.getFileLines();
-        while (allMovies.hasNext()) {
-            String currentMovie = allMovies.next();
-            String currentLink = allLinks.next();
-            new ProcessMovie(currentMovie, currentLink).run();
-        }
+        processMoviesAndLinks(allMovies, allLinks);
+    }
+
+    private void processMoviesAndLinks(Iterator<String> allMovies, Iterator<String> allLinks) {
+        while (allMovies.hasNext())
+            processNextMovie(allMovies.next(), allLinks.next());
+    }
+
+    private void processNextMovie(String movie, String link) {
+        new ProcessMovie(movie, link).run();
     }
 
     private void populateScreeningsTable() throws CloneNotSupportedException {
@@ -69,7 +74,7 @@ public class DataLoader implements ApplicationRunner {
          * each screen in each theater
          */
 
-         if(screenRepository.findAll().size() > SCREEN_DEFAULT_SIZE) return;
+        if (screenRepository.findAll().size() > SCREEN_DEFAULT_SIZE) return;
 
         for (int i = 1; i <= 5; i++) {
             List<Screen> screens = screenRepository.findByTheatreId(i);
@@ -78,30 +83,30 @@ public class DataLoader implements ApplicationRunner {
                 Screening screening2 = new Screening();
 
                 screening1.setTheatreId(i);
-                screening1.setScreenId(j+1);
+                screening1.setScreenId(j + 1);
                 screening2.setTheatreId(i);
-                screening2.setScreenId(j+1);
+                screening2.setScreenId(j + 1);
 
                 // Randomly select 2 movies from the movies db, 1 each for each screen
                 long totalMovies = movieRepository.count();
                 Random random = new Random();
 
-                long movieId1 = random.nextInt((int)totalMovies)+1;
+                long movieId1 = random.nextInt((int) totalMovies) + 1;
                 Movie movie1 = null;
                 while ((movie1 = movieRepository.findByMovieId(movieId1)) == null)
-                    movieId1 = random.nextInt((int)totalMovies)+1;
+                    movieId1 = random.nextInt((int) totalMovies) + 1;
 
-                long movieId2 = random.nextInt((int)totalMovies)+1;
+                long movieId2 = random.nextInt((int) totalMovies) + 1;
                 Movie movie2 = null;
                 while ((movie2 = movieRepository.findByMovieId(movieId2)) == null)
-                    movieId2 = random.nextInt((int)totalMovies)+1;
+                    movieId2 = random.nextInt((int) totalMovies) + 1;
 
                 screening1.setMovieName(movie1.getMovieName());
                 screening2.setMovieName(movie2.getMovieName());
 
                 // Get a random date between current date and 3 days from current date
                 Date date1 = new Date((new java.util.Date()).getTime());
-                Date date2 = new Date(date1.getTime()+3*24*60*60*1000);
+                Date date2 = new Date(date1.getTime() + 3 * 24 * 60 * 60 * 1000);
                 Date randomDate1 = new Date(ThreadLocalRandom.current().nextLong(date1.getTime(), date2.getTime()));
                 Date randomDate2 = new Date(ThreadLocalRandom.current().nextLong(date1.getTime(), date2.getTime()));
 
@@ -115,7 +120,7 @@ public class DataLoader implements ApplicationRunner {
                 screening1.setScreeningTime(Time.valueOf("10:00:00"));
                 screeningRepository.save(screening1);
 
-                Screening screening1Clone = (Screening)screening1.clone();
+                Screening screening1Clone = (Screening) screening1.clone();
                 screening1.setScreeningTime(Time.valueOf("18:00:00"));
                 screeningRepository.save(screening1Clone);
 
@@ -123,7 +128,7 @@ public class DataLoader implements ApplicationRunner {
                     screening2.setScreeningTime(Time.valueOf("10:00:00"));
                     screeningRepository.save(screening2);
 
-                    Screening screening2Clone = (Screening)screening2.clone();
+                    Screening screening2Clone = (Screening) screening2.clone();
                     screening2.setScreeningTime(Time.valueOf("18:00:00"));
                     screeningRepository.save(screening2Clone);
                 }
@@ -153,8 +158,8 @@ public class DataLoader implements ApplicationRunner {
 
             String movieName = "";
 
-            for (int i = 1; i < movieInfo.length-1; i++) {
-                if (i == movieInfo.length-2)
+            for (int i = 1; i < movieInfo.length - 1; i++) {
+                if (i == movieInfo.length - 2)
                     movieName += movieInfo[i];
                 else
                     movieName += movieInfo[i] + ",";
