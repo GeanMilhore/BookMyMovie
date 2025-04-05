@@ -15,15 +15,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.sql.Date;
 import java.sql.Time;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -45,10 +42,6 @@ public class DataLoader implements ApplicationRunner {
         return screeningRepository;
     }
 
-    public ScreenRepository getScreenRepository() {
-        return screenRepository;
-    }
-
     @Autowired
     public DataLoader(MovieRepository movieRepository, ScreeningRepository screeningRepository,
                       ScreenRepository screenRepository) {
@@ -57,71 +50,17 @@ public class DataLoader implements ApplicationRunner {
         this.screenRepository = screenRepository;
     }
 
-    private class ProcessMovie implements Runnable {
-        private String movieLine;
-        private String linkLine;
-
-        ProcessMovie(String movieLine, String linkLine) {
-            this.movieLine = movieLine;
-            this.linkLine = linkLine;
-        }
-
-        @Override
-        public void run() {
-            LOGGER.info(Thread.currentThread().getId() + ":" + linkLine);
-            String[] movieInfo = movieLine.split(",");
-
-            String movieName = "";
-
-            for (int i = 1; i < movieInfo.length-1; i++) {
-                if (i == movieInfo.length-2)
-                    movieName += movieInfo[i];
-                else
-                    movieName += movieInfo[i] + ",";
-            }
-
-            Movie movie = new Movie();
-            movie.setMovieId(Long.parseLong(movieInfo[0]));
-            movie.setMovieName(movieName.substring(0, movieName.indexOf('(')).trim());
-            movie.setMovieTags(movieInfo[2]);
-
-            String[] linkInfo = linkLine.split(",");
-            Document movieLensPage = null;
-            try {
-                movieLensPage = Jsoup.connect("https://www.imdb.com/title/tt" + linkInfo[1]).get();
-            } catch (HttpStatusException e) {
-                return;
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            if (movieLensPage != null) {
-                Element image = movieLensPage.getElementsByClass("ipc-lockup-overlay ipc-focusable").first();
-                movie.setMoviePosterUrl("imdb.com" + image.attr("href"));
-            }
-
-            movieRepository.save(movie);
-        }
-    }
-
     private void populateMovieTable() {
         if (!movieRepository.findAll().isEmpty()) return;
 
-        try (BufferedReader brMovies = new BufferedReader(new InputStreamReader(new ClassPathResource("movies.medium.csv").getInputStream()));
-               BufferedReader brLinks = new BufferedReader(new InputStreamReader(new ClassPathResource("links.csv").getInputStream()))) {
-            String movieLine;
-            String linkLine;
-            brMovies.readLine();    // Skip header line
-            brLinks.readLine();     // Skip header line
-            while ((movieLine = brMovies.readLine()) != null) {
-                linkLine = brLinks.readLine();
-                //taskExecutor.execute(new ProcessMovie(movieLine, linkLine));
-                new ProcessMovie(movieLine, linkLine).run();
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+        CSVReader moviesReader = new CSVReader("movies.medium.csv");
+        CSVReader linksReader = new CSVReader("links.csv");
+        Iterator<String> allMovies = moviesReader.getFileLines();
+        Iterator<String> allLinks = linksReader.getFileLines();
+        while (allMovies.hasNext()) {
+            String currentMovie = allMovies.next();
+            String currentLink = allLinks.next();
+            new ProcessMovie(currentMovie, currentLink).run();
         }
     }
 
@@ -196,5 +135,52 @@ public class DataLoader implements ApplicationRunner {
     public void run(ApplicationArguments applicationArguments) throws Exception {
         populateMovieTable();
         populateScreeningsTable();
+    }
+
+    class ProcessMovie implements Runnable {
+        private String movieLine;
+        private String linkLine;
+
+        ProcessMovie(String movieLine, String linkLine) {
+            this.movieLine = movieLine;
+            this.linkLine = linkLine;
+        }
+
+        @Override
+        public void run() {
+            LOGGER.info(Thread.currentThread().getId() + ":" + linkLine);
+            String[] movieInfo = movieLine.split(",");
+
+            String movieName = "";
+
+            for (int i = 1; i < movieInfo.length-1; i++) {
+                if (i == movieInfo.length-2)
+                    movieName += movieInfo[i];
+                else
+                    movieName += movieInfo[i] + ",";
+            }
+
+            Movie movie = new Movie();
+            movie.setMovieId(Long.parseLong(movieInfo[0]));
+            movie.setMovieName(movieName.substring(0, movieName.indexOf('(')).trim());
+            movie.setMovieTags(movieInfo[2]);
+
+            String[] linkInfo = linkLine.split(",");
+            Document movieLensPage = null;
+            try {
+                movieLensPage = Jsoup.connect("https://www.imdb.com/title/tt" + linkInfo[1]).get();
+            } catch (HttpStatusException e) {
+                return;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            if (movieLensPage != null) {
+                Element image = movieLensPage.getElementsByClass("ipc-lockup-overlay ipc-focusable").first();
+                movie.setMoviePosterUrl("imdb.com" + image.attr("href"));
+            }
+
+            movieRepository.save(movie);
+        }
     }
 }
