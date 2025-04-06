@@ -6,6 +6,7 @@ import com.vaibhavsood.data.entity.Screening;
 import com.vaibhavsood.data.repository.MovieRepository;
 import com.vaibhavsood.data.repository.ScreenRepository;
 import com.vaibhavsood.data.repository.ScreeningRepository;
+import com.vaibhavsood.utils.DateUtils;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -19,11 +20,8 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.sql.Date;
-import java.sql.Time;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Component
 public class DataLoader implements ApplicationRunner {
@@ -50,13 +48,19 @@ public class DataLoader implements ApplicationRunner {
         this.screenRepository = screenRepository;
     }
 
+    @Override
+    public void run(ApplicationArguments applicationArguments) throws Exception {
+        populateMovieTable();
+        populateScreeningsTable();
+    }
+
     private void populateMovieTable() {
         if (!movieRepository.findAll().isEmpty()) return;
 
-        CSVFile moviesReader = new CSVFile("movies.medium.csv");
-        CSVFile linksReader = new CSVFile("links.csv");
-        Iterator<String> allMovies = moviesReader.getFileLines();
-        Iterator<String> allLinks = linksReader.getFileLines();
+        CSVFile moviesFile = new CSVFile("movies.medium.csv");
+        CSVFile linksFile = new CSVFile("links.csv");
+        Iterator<String> allMovies = moviesFile.getFileLines();
+        Iterator<String> allLinks = linksFile.getFileLines();
         processMoviesAndLinks(allMovies, allLinks);
     }
 
@@ -74,72 +78,43 @@ public class DataLoader implements ApplicationRunner {
          * each screen in each theater
          */
 
-        if (screenRepository.findAll().size() > SCREEN_DEFAULT_SIZE) return;
+        if (screenRepository.count() > SCREEN_DEFAULT_SIZE) return;
 
         for (int i = 1; i <= 5; i++) {
             List<Screen> screens = screenRepository.findByTheatreId(i);
-            for (int j = 0; j < screens.size(); j++) {
-                Screening screening1 = new Screening();
-                Screening screening2 = new Screening();
+            for (int j = 1; j < screens.size() + 1; j++) {
+                Screening screening = ScreeningFactory.makeRandom();
 
-                screening1.setTheatreId(i);
-                screening1.setScreenId(j + 1);
-                screening2.setTheatreId(i);
-                screening2.setScreenId(j + 1);
+                Integer screenId = j;
+                Integer theaterId = i;
+                String movieName = randomMovie().getMovieName();
 
-                // Randomly select 2 movies from the movies db, 1 each for each screen
-                long totalMovies = movieRepository.count();
-                Random random = new Random();
+                screening.setTheatreId(theaterId);
+                screening.setScreenId(screenId);
+                screening.setMovieName(movieName);
+                screeningRepository.save(screening);
 
-                long movieId1 = random.nextInt((int) totalMovies) + 1;
-                Movie movie1 = null;
-                while ((movie1 = movieRepository.findByMovieId(movieId1)) == null)
-                    movieId1 = random.nextInt((int) totalMovies) + 1;
+                Screening screeningClone = ScreeningFactory.shuffledClone(screening);
+                screeningRepository.save(screeningClone);
 
-                long movieId2 = random.nextInt((int) totalMovies) + 1;
-                Movie movie2 = null;
-                while ((movie2 = movieRepository.findByMovieId(movieId2)) == null)
-                    movieId2 = random.nextInt((int) totalMovies) + 1;
-
-                screening1.setMovieName(movie1.getMovieName());
-                screening2.setMovieName(movie2.getMovieName());
-
-                // Get a random date between current date and 3 days from current date
-                Date date1 = new Date((new java.util.Date()).getTime());
-                Date date2 = new Date(date1.getTime() + 3 * 24 * 60 * 60 * 1000);
-                Date randomDate1 = new Date(ThreadLocalRandom.current().nextLong(date1.getTime(), date2.getTime()));
-                Date randomDate2 = new Date(ThreadLocalRandom.current().nextLong(date1.getTime(), date2.getTime()));
-
-                screening1.setScreeningDate(randomDate1);
-                screening2.setScreeningDate(randomDate2);
-
-                screening1.setBookedTickets(0);
-                screening2.setBookedTickets(0);
-
-                // 2 screenings per screen
-                screening1.setScreeningTime(Time.valueOf("10:00:00"));
-                screeningRepository.save(screening1);
-
-                Screening screening1Clone = (Screening) screening1.clone();
-                screening1.setScreeningTime(Time.valueOf("18:00:00"));
-                screeningRepository.save(screening1Clone);
-
-                if (randomDate1.getDate() != randomDate2.getDate()) {
-                    screening2.setScreeningTime(Time.valueOf("10:00:00"));
-                    screeningRepository.save(screening2);
-
-                    Screening screening2Clone = (Screening) screening2.clone();
-                    screening2.setScreeningTime(Time.valueOf("18:00:00"));
-                    screeningRepository.save(screening2Clone);
-                }
+                shuffleInformationAndSave(screening);
             }
         }
     }
 
-    @Override
-    public void run(ApplicationArguments applicationArguments) throws Exception {
-        populateMovieTable();
-        populateScreeningsTable();
+    private void shuffleInformationAndSave(Screening source) {
+        Screening screeningToShuffle = ScreeningFactory.clone(source);
+        Date sourceDate = screeningToShuffle.getScreeningDate();
+        Date newDate = DateUtils.plusDays(sourceDate, 1);
+        screeningToShuffle.setScreeningDate(newDate);
+        screeningRepository.save(screeningToShuffle);
+
+        Screening shuffledClone = ScreeningFactory.shuffledClone(screeningToShuffle);
+        screeningRepository.save(shuffledClone);
+    }
+
+    private Movie randomMovie() {
+        return movieRepository.findRandom();
     }
 
     class ProcessMovie implements Runnable {
