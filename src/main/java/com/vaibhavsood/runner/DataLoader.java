@@ -92,12 +92,14 @@ public class DataLoader implements ApplicationRunner {
                 screening.setTheatreId(theaterId);
                 screening.setScreenId(screenId);
                 screening.setMovieName(movieName);
+                //TODO - transform into a physic dependency or make all saves come from the same method
+                shuffleInformationAndSave(screening);
+
                 screeningRepository.save(screening);
 
                 Screening screeningClone = ScreeningFactory.shuffledClone(screening);
                 screeningRepository.save(screeningClone);
 
-                shuffleInformationAndSave(screening);
             }
         }
     }
