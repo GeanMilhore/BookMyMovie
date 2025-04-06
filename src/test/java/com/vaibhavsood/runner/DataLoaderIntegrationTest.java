@@ -59,7 +59,7 @@ public class DataLoaderIntegrationTest {
         Screening firstScreening = screeningList.get(0);
 
         assertEquals(firstScreening.getScreeningId(), 1);
-        assertEquals(firstScreening.getScreeningTime(), Time.valueOf("18:00:00"));
+        assertEquals(firstScreening.getScreeningTime(), Time.valueOf("10:00:00"));
         assertFalse(firstScreening.getMovieName().isEmpty());
         assertNotNull(firstScreening.getScreenId());
     }

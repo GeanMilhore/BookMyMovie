@@ -6,7 +6,6 @@ import com.vaibhavsood.data.entity.Screening;
 import com.vaibhavsood.data.repository.MovieRepository;
 import com.vaibhavsood.data.repository.ScreenRepository;
 import com.vaibhavsood.data.repository.ScreeningRepository;
-import com.vaibhavsood.utils.DateUtils;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -19,26 +18,16 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.sql.Date;
 import java.util.Iterator;
 import java.util.List;
 
 @Component
 public class DataLoader implements ApplicationRunner {
+    private final Logger LOGGER = LoggerFactory.getLogger(this.getClass());
+    private final int SCREEN_DEFAULT_SIZE = 14;
     private MovieRepository movieRepository;
     private ScreenRepository screenRepository;
     private ScreeningRepository screeningRepository;
-    private final Logger LOGGER = LoggerFactory.getLogger(this.getClass());
-
-    private final int SCREEN_DEFAULT_SIZE = 14;
-
-    public MovieRepository getMovieRepository() {
-        return movieRepository;
-    }
-
-    public ScreeningRepository getScreeningRepository() {
-        return screeningRepository;
-    }
 
     @Autowired
     public DataLoader(MovieRepository movieRepository, ScreeningRepository screeningRepository,
@@ -49,7 +38,7 @@ public class DataLoader implements ApplicationRunner {
     }
 
     @Override
-    public void run(ApplicationArguments applicationArguments) throws Exception {
+    public void run(ApplicationArguments applicationArguments) {
         populateMovieTable();
         populateScreeningsTable();
     }
@@ -73,50 +62,57 @@ public class DataLoader implements ApplicationRunner {
         new ProcessMovie(movie, link).run();
     }
 
-    private void populateScreeningsTable() throws CloneNotSupportedException {
-        /* schema.sql lists 5 theaters, generate 2 screenings randomly for
-         * each screen in each theater
-         */
-
+    private void populateScreeningsTable() {
         if (screenRepository.count() > SCREEN_DEFAULT_SIZE) return;
-
-        for (int i = 1; i <= 5; i++) {
-            List<Screen> screens = screenRepository.findByTheatreId(i);
-            for (int j = 1; j < screens.size() + 1; j++) {
-                Screening screening = ScreeningFactory.makeRandom();
-
-                Integer screenId = j;
-                Integer theaterId = i;
-                String movieName = randomMovie().getMovieName();
-
-                screening.setTheatreId(theaterId);
-                screening.setScreenId(screenId);
-                screening.setMovieName(movieName);
-                //TODO - transform into a physic dependency or make all saves come from the same method
-                shuffleInformationAndSave(screening);
-
-                screeningRepository.save(screening);
-
-                Screening screeningClone = ScreeningFactory.shuffledClone(screening);
-                screeningRepository.save(screeningClone);
-
-            }
-        }
+        for (int theaterId = 1; theaterId <= 5; theaterId++)
+            populateAllScreensOfTheater(theaterId);
     }
 
-    private void shuffleInformationAndSave(Screening source) {
-        Screening screeningToShuffle = ScreeningFactory.clone(source);
-        Date sourceDate = screeningToShuffle.getScreeningDate();
-        Date newDate = DateUtils.plusDays(sourceDate, 1);
-        screeningToShuffle.setScreeningDate(newDate);
-        screeningRepository.save(screeningToShuffle);
+    private void populateAllScreensOfTheater(int theaterId) {
+        List<Screen> theaterScreens = screenRepository.findByTheatreId(theaterId);
+        populateScreeningsForEachScreen(theaterScreens);
+    }
 
-        Screening shuffledClone = ScreeningFactory.shuffledClone(screeningToShuffle);
-        screeningRepository.save(shuffledClone);
+    private void populateScreeningsForEachScreen(List<Screen> screens) {
+        for (Screen screen : screens)
+            saveScreeningsBasedOn(screen);
+    }
+
+    private void saveScreeningsBasedOn(Screen screen) {
+        Screening screening = ScreeningFactory.makeRandom(screen);
+        screening.setMovieName(randomMovie().getMovieName());
+        saveShuffledScreeningMultipleTimes(screening);
+    }
+
+    private void saveShuffledScreeningMultipleTimes(Screening screening) {
+        screeningRepository.save(screening);
+        ScreeningShuffler shuffler = new ScreeningShuffler(screening);
+        saveScreeningClone(shuffler);
+        saveShuffledScreeningClones(shuffler);
+    }
+
+    private void saveScreeningClone(ScreeningShuffler shuffler) {
+        Screening screeningClone = shuffler.cloneAndShuffleTime();
+        screeningRepository.save(screeningClone);
+    }
+
+    private void saveShuffledScreeningClones(ScreeningShuffler shuffler) {
+        Screening shuffledScreening = shuffler.cloneAndIncreaseDaysBy(1);
+        Screening shuffledScreeningClone = shuffler.cloneAndShuffleTime();
+        screeningRepository.save(shuffledScreening);
+        screeningRepository.save(shuffledScreeningClone);
     }
 
     private Movie randomMovie() {
         return movieRepository.findRandom();
+    }
+
+    public MovieRepository getMovieRepository() {
+        return movieRepository;
+    }
+
+    public ScreeningRepository getScreeningRepository() {
+        return screeningRepository;
     }
 
     class ProcessMovie implements Runnable {
