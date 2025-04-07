@@ -40,7 +40,7 @@ public class MovieFile {
         return movieLine.subSequence(nameBegin, nameEnd).toString().trim();
     }
 
-    public String getContextPath() {
+    public String getWebPath() {
         return linkLine.split(",")[1];
     }
 
