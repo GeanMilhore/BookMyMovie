@@ -7,7 +7,8 @@ public class MoviePage {
 
     private Document pageDocument;
 
-    public MoviePage(Document pageDocument, String url) {
+    public MoviePage(Document pageDocument) {
+        if(pageDocument == null) throw new RuntimeException("Document doesn't exist!") ;
         this.pageDocument = pageDocument;
     }
 

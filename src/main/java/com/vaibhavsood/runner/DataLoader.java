@@ -6,8 +6,6 @@ import com.vaibhavsood.data.entity.Screening;
 import com.vaibhavsood.data.repository.MovieRepository;
 import com.vaibhavsood.data.repository.ScreenRepository;
 import com.vaibhavsood.data.repository.ScreeningRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -18,7 +16,6 @@ import java.util.List;
 
 @Component
 public class DataLoader implements ApplicationRunner {
-    private final Logger LOGGER = LoggerFactory.getLogger(this.getClass());
     private MovieRepository movieRepository;
     private ScreenRepository screenRepository;
     private ScreeningRepository screeningRepository;
@@ -49,7 +46,7 @@ public class DataLoader implements ApplicationRunner {
 
     private void processEachMovieFile(MovieFileIterator movieFileIterator) {
         while (movieFileIterator.hasNext())
-            new MovieProcessor(movieFileIterator.next()).run();
+            new MovieProcessor(movieFileIterator.next(), movieRepository).run();
     }
 
     private void populateScreeningsTable() {
@@ -74,6 +71,10 @@ public class DataLoader implements ApplicationRunner {
         saveShuffledScreeningMultipleTimes(screening);
     }
 
+    private Movie randomMovie() {
+        return movieRepository.findRandom();
+    }
+
     private void saveShuffledScreeningMultipleTimes(Screening screening) {
         ScreeningShuffler shuffler = new ScreeningShuffler(screening);
         saveScreeningClone(shuffler);
@@ -93,35 +94,11 @@ public class DataLoader implements ApplicationRunner {
         screeningRepository.save(shuffledScreeningClone);
     }
 
-    private Movie randomMovie() {
-        return movieRepository.findRandom();
-    }
-
     public MovieRepository getMovieRepository() {
         return movieRepository;
     }
 
     public ScreeningRepository getScreeningRepository() {
         return screeningRepository;
-    }
-
-    class MovieProcessor implements Runnable {
-
-        private MovieFile movieFile;
-
-        MovieProcessor(MovieFile movieFile) {
-            this.movieFile = movieFile;
-        }
-
-        @Override
-        public void run() {
-            LOGGER.info("{}:{}", Thread.currentThread().getId(), movieFile.getLinkLine());
-            Movie movie = movieFile.make();
-            String movieWebPath = movieFile.getWebPath();
-            MoviePage moviePage = PageReader.requestPageDocument(movieWebPath);
-            String posterUrl = moviePage.getPosterUrl();
-            movie.setMoviePosterUrl(posterUrl);
-            movieRepository.save(movie);
-        }
     }
 }
