@@ -30,8 +30,7 @@ public class DataLoader implements ApplicationRunner {
     private ScreeningRepository screeningRepository;
 
     @Autowired
-    public DataLoader(MovieRepository movieRepository, ScreeningRepository screeningRepository,
-                      ScreenRepository screenRepository) {
+    public DataLoader(MovieRepository movieRepository, ScreeningRepository screeningRepository, ScreenRepository screenRepository) {
         this.movieRepository = movieRepository;
         this.screeningRepository = screeningRepository;
         this.screenRepository = screenRepository;
@@ -50,16 +49,13 @@ public class DataLoader implements ApplicationRunner {
         CSVFile linksFile = new CSVFile("links.csv");
         Iterator<String> allMovies = moviesFile.getFileLines();
         Iterator<String> allLinks = linksFile.getFileLines();
-        processMoviesAndLinks(allMovies, allLinks);
+        MovieFileIterator movieFileIterator = new MovieFileIterator(allMovies, allLinks);
+        processEachMovieFile(movieFileIterator);
     }
 
-    private void processMoviesAndLinks(Iterator<String> allMovies, Iterator<String> allLinks) {
-        while (allMovies.hasNext())
-            processNextMovie(allMovies.next(), allLinks.next());
-    }
-
-    private void processNextMovie(String movie, String link) {
-        new ProcessMovie(movie, link).run();
+    private void processEachMovieFile(MovieFileIterator movieFileIterator) {
+        while (movieFileIterator.hasNext())
+            new ProcessMovie(movieFileIterator.next()).run();
     }
 
     private void populateScreeningsTable() {
@@ -116,37 +112,22 @@ public class DataLoader implements ApplicationRunner {
     }
 
     class ProcessMovie implements Runnable {
-        private String movieLine;
-        private String linkLine;
 
-        ProcessMovie(String movieLine, String linkLine) {
-            this.movieLine = movieLine;
-            this.linkLine = linkLine;
+        private MovieFile movieFile;
+
+        ProcessMovie(MovieFile movieFile) {
+            this.movieFile = movieFile;
         }
 
         @Override
         public void run() {
-            LOGGER.info(Thread.currentThread().getId() + ":" + linkLine);
-            String[] movieInfo = movieLine.split(",");
+            LOGGER.info(Thread.currentThread().getId() + ":" + movieFile.getLinkLine());
 
-            String movieName = "";
-
-            for (int i = 1; i < movieInfo.length - 1; i++) {
-                if (i == movieInfo.length - 2)
-                    movieName += movieInfo[i];
-                else
-                    movieName += movieInfo[i] + ",";
-            }
-
-            Movie movie = new Movie();
-            movie.setMovieId(Long.parseLong(movieInfo[0]));
-            movie.setMovieName(movieName.substring(0, movieName.indexOf('(')).trim());
-            movie.setMovieTags(movieInfo[2]);
-
-            String[] linkInfo = linkLine.split(",");
+            Movie movie = movieFile.make();
+            String linkContextPath = movieFile.getContextPath();
             Document movieLensPage = null;
             try {
-                movieLensPage = Jsoup.connect("https://www.imdb.com/title/tt" + linkInfo[1]).get();
+                movieLensPage = Jsoup.connect("https://www.imdb.com/title/tt" + linkContextPath).get();
             } catch (HttpStatusException e) {
                 return;
             } catch (IOException e) {
