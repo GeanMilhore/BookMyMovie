@@ -7,24 +7,26 @@ import org.slf4j.LoggerFactory;
 
 public class MovieProcessor implements Runnable {
 
-    private MovieFile movieFile;
-    private MovieRepository movieRepository;
     private final Logger LOGGER;
+    private MovieRepository movieRepository;
+    private Movie sourceMovie;
+    private String movieWebPath;
+    private String rawMovieLink;
 
     MovieProcessor(MovieFile movieFile, MovieRepository movieRepository) {
         LOGGER = LoggerFactory.getLogger(this.getClass());
-        this.movieFile = movieFile;
         this.movieRepository = movieRepository;
+        sourceMovie = movieFile.make();
+        movieWebPath = movieFile.getWebPath();
+        rawMovieLink = movieFile.getLinkLine();
     }
 
     @Override
     public void run() {
-        LOGGER.info("{}:{}", Thread.currentThread().getId(), movieFile.getLinkLine());
-        Movie movie = movieFile.make();
-        String movieWebPath = movieFile.getWebPath();
+        LOGGER.info("{}:{}", Thread.currentThread().getId(), rawMovieLink);
         MoviePage moviePage = PageReader.requestPageDocument(movieWebPath);
         String posterUrl = moviePage.getPosterUrl();
-        movie.setMoviePosterUrl(posterUrl);
-        movieRepository.save(movie);
+        sourceMovie.setMoviePosterUrl(posterUrl);
+        movieRepository.save(sourceMovie);
     }
 }
